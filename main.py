@@ -1,46 +1,46 @@
 import asyncio
 import logging
 from aiohttp import web
-from aiogram import Bot, Dispatcher, F
-from aiogram.types import Message, Update
-from aiogram.filters import Command
-from aiogram.methods import DeleteWebhook
+import requests
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from aiogram import Bot, Dispatcher
+from aiogram.types import Update, Message
+from aiogram.filters import Command
+from aiogram.methods import DeleteWebhook
 import os
-import requests
 
-# 🔐 Твои данные
+# === ДАННЫЕ БОТА ===
 TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'
 CHANNEL_ID = '@Daily_Reminder_Islam'
 ADMIN_ID = 1812311983
 WEBHOOK_HOST = 'https://daily-islam.onrender.com'
 WEBHOOK_PATH = '/webhook'
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-
-# 🕘 Конфигурация времени
 TIME_FILE = "post_time.txt"
 DEFAULT_POST_TIME = "09:00"
+PORT = int(os.environ.get('PORT', 8080))
 
-# 📋 Настройка логирования
+# === ЛОГИ ===
 logging.basicConfig(level=logging.INFO)
 
-# 🔧 Объекты бота
+# === ИНИЦИАЛИЗАЦИЯ ===
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# 🕌 Темы постов по дням
+# === ТЕМЫ ===
 daily_topics = [
     "Поделись Цитатой из Корана для надежды! (не больше 50 слов,добавь немного смайликов для красоты и (всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Поделись аятом из Корана, который раскрывает любовь Аллаха к Своим рабам и объясни его смысл...",
+    "Поделись аятом из Корана, который раскрывает любовь Аллаха к Своим рабам и объясни его смысл.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
     "Расскажи хадис Пророка ﷺ о любви Аллаха к верующим.(не больше 50 слов)",
-    "Сделай мотивационный пост о том, как Аллах проявляет Свою любовь в трудностях...",
-    "Поделись вдохновляющей историей из исламской традиции...",
-    "Объясни, почему любовь Аллаха выше любви любого творения...",
-    "Расскажи, какие качества человека делают его любимым для Аллаха...",
-    "Сделай пост с напоминанием о том, что Аллах любит прощающих и кающихся..."
+    "Сделай мотивационный пост о том, как Аллах проявляет Свою любовь в трудностях.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
+    "Поделись вдохновляющей историей из исламской традиции о том, как Аллах проявил милость к Своему рабу.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
+    "Объясни, почему любовь Аллаха выше любви любого творения.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
+    "Расскажи, какие качества человека делают его любимым для Аллаха.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
+    "Сделай пост с напоминанием о том, что Аллах любит прощающих и кающихся.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов"
 ]
 
+# === ХЕЛПЕРЫ ===
 def load_post_time():
     if os.path.exists(TIME_FILE):
         with open(TIME_FILE, "r") as f:
@@ -67,6 +67,7 @@ def update_last_post_date():
     with open("last_post_date.txt", "w") as f:
         f.write(datetime.now(ZoneInfo("Asia/Almaty")).strftime("%Y-%m-%d"))
 
+# === ОТПРАВКА ПОСТА ===
 async def send_daily_post():
     if was_posted_today():
         logging.info("✅ Пост уже был опубликован сегодня.")
@@ -77,7 +78,7 @@ async def send_daily_post():
         url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
         headers = {
             "Content-Type": "application/json",
-            "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg"  # ← Замени на свой валидный ключ!
+            "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg"  # <-- Твой токен API
         }
         data = {
             "model": "deepseek-ai/DeepSeek-R1",
@@ -86,36 +87,31 @@ async def send_daily_post():
                 {"role": "user", "content": prompt}
             ]
         }
-
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
-        result = response.json()
-        text = result['choices'][0]['message']['content']
+        text = response.json()['choices'][0]['message']['content']
         bot_text = text.split('</think>\n\n')[1] if '</think>\n\n' in text else text
 
         await bot.send_message(chat_id=CHANNEL_ID, text=bot_text, parse_mode="Markdown")
         update_last_post_date()
         logging.info("✅ Пост успешно отправлен.")
-
     except Exception as e:
         logging.error(f"❌ Ошибка при отправке поста: {e}")
 
-# 🕐 Планировщик публикации
+# === ЗАДАЧА ===
 async def daily_post():
     while True:
         now = datetime.now(ZoneInfo("Asia/Almaty"))
-        post_time = load_post_time()
-        hour, minute = map(int, post_time.split(":"))
-        target_time = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        target_hour, target_minute = map(int, load_post_time().split(":"))
+        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
         if now > target_time:
             target_time += timedelta(days=1)
-
         wait_seconds = (target_time - now).total_seconds()
-        logging.info(f"⏳ Следующий пост в {post_time} (через {wait_seconds / 3600:.1f} часов)")
+        logging.info(f"⏳ Следующий пост в {target_time.strftime('%H:%M')} (через {wait_seconds/3600:.1f} часов)")
         await asyncio.sleep(wait_seconds)
         await send_daily_post()
 
-# 🔘 Команды
+# === ХЕНДЛЕРЫ ===
 @dp.message(Command("start"))
 async def cmd_start(message: Message):
     await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.")
@@ -125,12 +121,10 @@ async def cmd_set_time(message: Message):
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Эта команда только для администратора!")
         return
-
     args = message.text.split()
     if len(args) != 2 or ":" not in args[1]:
-        await message.answer("⚠️ Используйте: /set_time HH:MM (например, /set_time 09:00)")
+        await message.answer("⚠️ Используйте: /set_time HH:MM")
         return
-
     try:
         datetime.strptime(args[1], "%H:%M")
         save_post_time(args[1])
@@ -143,37 +137,39 @@ async def cmd_post_now(message: Message):
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Эта команда только для администратора!")
         return
-
     await send_daily_post()
     await message.answer("✅ Пост отправлен вручную!")
 
+# === ОБРАБОТКА ОБЫЧНЫХ СООБЩЕНИЙ ===
 @dp.message()
 async def handle_message(message: Message):
-    await message.answer("Я работаю только по командам. Используйте /start, /set_time или /post_now.")
+    await message.answer("Я принимаю только команды. Попробуйте /start.")
 
-# 🌐 Webhook-обработчик
-async def on_webhook(request):
-    json_str = await request.json()
-    update = Update(**json_str)
-    await dp.feed_update(bot, update)  # ✅ Правильно для aiogram 3
-    return web.Response(status=200)
-
-# 🚀 Запуск
-async def main():
-    await bot.set_webhook(WEBHOOK_URL)
-    app = web.Application()
-    app.router.add_post(WEBHOOK_PATH, on_webhook)
+# === ВЕБХУК ===
+async def on_startup():
+    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
     asyncio.create_task(daily_post())
-    runner = web.AppRunner(app)
-    await runner.setup()
-    site = web.TCPSite(runner, "0.0.0.0", 8080)
-    await site.start()
-    logging.info("✅ Webhook и сервер запущены.")
-    while True:
-        await asyncio.sleep(3600)
+
+async def on_webhook(request):
+    try:
+        data = await request.json()
+        update = Update.model_validate(data)
+        await dp.feed_update(bot, update)
+        return web.Response()
+    except Exception as e:
+        logging.error(f"Ошибка при обработке вебхука: {e}")
+        return web.Response(status=500)
+
+# === ХЕЛСЧЕК ===
+@web.get("/")
+async def root(request):
+    return web.Response(text="Bot is alive ✅")
+
+# === ПРИЛОЖЕНИЕ ===
+app = web.Application()
+app.router.add_get("/", root)
+app.router.add_post(WEBHOOK_PATH, on_webhook)
 
 if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except (KeyboardInterrupt, SystemExit):
-        logging.error("❌ Бот остановлен!")
+    asyncio.run(on_startup())
+    web.run_app(app, host="0.0.0.0", port=PORT)
