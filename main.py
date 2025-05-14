@@ -1,32 +1,34 @@
 import asyncio
 import logging
-from background import keep_alive
+from aiohttp import web
+from aiogram import Bot, Dispatcher
+from aiogram.types import Update
+import os
 import requests
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
-from aiogram import Bot, Dispatcher
 from aiogram.filters import Command
-from aiogram.methods import DeleteWebhook
 from aiogram.types import Message
-import os
+from aiogram.methods import DeleteWebhook
 
 # ✅ Токен бота и ID канала
 TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'
 CHANNEL_ID = '@Daily_Reminder_Islam'
 ADMIN_ID = 1812311983  # ⚠️ Замените на ваш ID в Telegram (узнать можно у @userinfobot)
+WEBHOOK_HOST = 'https://daily-islam.onrender.com'  # Замените на свой HTTPS-домен
+WEBHOOK_PATH = '/webhook'
+WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
+TIME_FILE = "post_time.txt"
+DEFAULT_POST_TIME = "09:00"
 
 # ✅ Настройка логов
 logging.basicConfig(level=logging.INFO)
-token = os.environ.get('TOKEN')
-if not token:
-    raise ValueError("Переменная окружения TOKEN не установлена")
-
-bot = Bot(token=token)
+bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
 # ✅ Темы по дням (8 штук)
 daily_topics = [
-    "Поделись Цитатой из Корана для надежды! (не больше 50 слов,добавь немного смайликов для красоты и (всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
+    "Поделись Цитатой из Корана для надежды! (не больше 50 слов, добавь немного смайликов для красоты и (всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
     "Поделись аятом из Корана, который раскрывает любовь Аллаха к Своим рабам и объясни его смысл.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
     "Расскажи хадис Пророка ﷺ о любви Аллаха к верующим.(не больше 50 слов)",
     "Сделай мотивационный пост о том, как Аллах проявляет Свою любовь в трудностях.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
@@ -57,8 +59,7 @@ def save_post_time(new_time):
 
 # ✅ Получить текущую тему дня
 def get_daily_prompt():
-    index = datetime.now(
-        ZoneInfo("Asia/Almaty")).timetuple().tm_yday % len(daily_topics)
+    index = datetime.now(ZoneInfo("Asia/Almaty")).timetuple().tm_yday % len(daily_topics)
     return daily_topics[index]
 
 
@@ -191,7 +192,7 @@ async def cmd_post_now(message: Message):
     await message.answer("✅ Пост отправлен вручную!")
 
 
-# ✅ Обработка обычных сообщений (как в оригинале)
+# ✅ Обработка обычных сообщений
 @dp.message()
 async def handle_message(message: Message):
     url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
@@ -209,37 +210,47 @@ async def handle_message(message: Message):
             "role":
             "system",
             "content":
-            "Сделай телеграм пост на тему 'Любовь Аллаха к своим рабам' (не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята), но не пиши кол-во слов"
+            "Сделай исламский телеграм-пост на тему дня"
         }, {
             "role": "user",
             "content": message.text
         }]
     }
 
-    try:
-        response = requests.post(url, headers=headers, json=data)
-        response.raise_for_status()
-        result = response.json()
-        text = result['choices'][0]['message']['content']
-        bot_text = text.split(
-            '</think>\n\n')[1] if '</think>\n\n' in text else text
+    response = requests.post(url, headers=headers, json=data)
+    response.raise_for_status()
+    result = response.json()
+    text = result['choices'][0]['message']['content']
+    bot_text = text.split(
+        '</think>\n\n')[1] if '</think>\n\n' in text else text
+    await message.answer(bot_text)
 
-        await bot.send_message(chat_id=CHANNEL_ID,
-                               text=bot_text,
-                               parse_mode="Markdown")
 
-    except Exception as e:
-        logging.error(f"❌ Ошибка при обработке запроса: {e}")
-        await message.answer(
-            "Произошла ошибка при обработке. Попробуйте позже.")
+# ✅ Вебхук для получения обновлений
+async def on_start(request):
+    return web.Response(text="Bot is running!")
+
+
+async def on_webhook(request):
+    json_str = await request.json()
+    update = Update(**json_str)
+    await dp.process_update(update)
+    return web.Response(status=200)
+
+
+async def main():
+    # Устанавливаем вебхук
+    await bot.set_webhook(WEBHOOK_URL)
+    logging.info(f"Webhook установлен: {WEBHOOK_URL}")
+
+    # Запуск aiohttp-сервера
+    app = web.Application()
+    app.router.add_get('/', on_start)  # Простой стартовый эндпоинт
+    app.router.add_post(WEBHOOK_PATH, on_webhook)  # Обработка вебхука
+    logging.info(f"Сервер запущен на {WEBHOOK_HOST}")
+    await web._run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
 
 # ✅ Запуск
-async def main():
-    await bot(DeleteWebhook(drop_pending_updates=True))
-    await asyncio.gather(daily_post(), dp.start_polling(bot))
-
-
-keep_alive()
 if __name__ == "__main__":
     asyncio.run(main())
