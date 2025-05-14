@@ -1,34 +1,33 @@
+import os
 import asyncio
 import logging
-from aiohttp import web
-import requests
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
+from aiohttp import web
 from aiogram import Bot, Dispatcher
-from aiogram.types import Update, Message
-from aiogram.filters import Command
+from aiogram.types import Update
+from aiogram.filters import CommandStart, Command
 from aiogram.methods import DeleteWebhook
-import os
+import requests
 
-# === ДАННЫЕ БОТА ===
+# ✅ Конфигурация
 TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'
 CHANNEL_ID = '@Daily_Reminder_Islam'
 ADMIN_ID = 1812311983
 WEBHOOK_HOST = 'https://daily-islam.onrender.com'
 WEBHOOK_PATH = '/webhook'
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-TIME_FILE = "post_time.txt"
 DEFAULT_POST_TIME = "09:00"
-PORT = int(os.environ.get('PORT', 8080))
+TIME_FILE = "post_time.txt"
 
-# === ЛОГИ ===
+# ✅ Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# === ИНИЦИАЛИЗАЦИЯ ===
+# ✅ Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# === ТЕМЫ ===
+# ✅ Темы для ежедневных напоминаний
 daily_topics = [
     "Поделись Цитатой из Корана для надежды! (не больше 50 слов,добавь немного смайликов для красоты и (всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
     "Поделись аятом из Корана, который раскрывает любовь Аллаха к Своим рабам и объясни его смысл.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
@@ -40,7 +39,11 @@ daily_topics = [
     "Сделай пост с напоминанием о том, что Аллах любит прощающих и кающихся.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов"
 ]
 
-# === ХЕЛПЕРЫ ===
+# ✅ Вспомогательные функции
+def get_daily_prompt():
+    index = datetime.now(ZoneInfo("Asia/Almaty")).timetuple().tm_yday % len(daily_topics)
+    return daily_topics[index]
+
 def load_post_time():
     if os.path.exists(TIME_FILE):
         with open(TIME_FILE, "r") as f:
@@ -50,10 +53,6 @@ def load_post_time():
 def save_post_time(new_time):
     with open(TIME_FILE, "w") as f:
         f.write(new_time)
-
-def get_daily_prompt():
-    index = datetime.now(ZoneInfo("Asia/Almaty")).timetuple().tm_yday % len(daily_topics)
-    return daily_topics[index]
 
 def was_posted_today():
     path = "last_post_date.txt"
@@ -67,109 +66,113 @@ def update_last_post_date():
     with open("last_post_date.txt", "w") as f:
         f.write(datetime.now(ZoneInfo("Asia/Almaty")).strftime("%Y-%m-%d"))
 
-# === ОТПРАВКА ПОСТА ===
+# ✅ Отправка поста
 async def send_daily_post():
     if was_posted_today():
-        logging.info("✅ Пост уже был опубликован сегодня.")
+        logging.info("✅ Пост уже был сегодня.")
         return
 
+    prompt = get_daily_prompt()
+    url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
+    headers = {
+        "Content-Type": "application/json",
+        "Authorization": "Bearer io-v2-..."  # ❗️Замени на свой реальный API токен
+    }
+    data = {
+        "model": "deepseek-ai/DeepSeek-R1",
+        "messages": [
+            {"role": "system", "content": "Сделай исламский телеграм-пост на тему дня"},
+            {"role": "user", "content": prompt}
+        ]
+    }
+
     try:
-        prompt = get_daily_prompt()
-        url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg"  # <-- Твой токен API
-        }
-        data = {
-            "model": "deepseek-ai/DeepSeek-R1",
-            "messages": [
-                {"role": "system", "content": "Сделай исламский телеграм-пост на тему дня"},
-                {"role": "user", "content": prompt}
-            ]
-        }
         response = requests.post(url, headers=headers, json=data)
         response.raise_for_status()
-        text = response.json()['choices'][0]['message']['content']
+        result = response.json()
+        text = result['choices'][0]['message']['content']
         bot_text = text.split('</think>\n\n')[1] if '</think>\n\n' in text else text
 
         await bot.send_message(chat_id=CHANNEL_ID, text=bot_text, parse_mode="Markdown")
         update_last_post_date()
         logging.info("✅ Пост успешно отправлен.")
     except Exception as e:
-        logging.error(f"❌ Ошибка при отправке поста: {e}")
+        logging.error(f"❌ Ошибка отправки поста: {e}")
 
-# === ЗАДАЧА ===
+# ✅ Планировщик
 async def daily_post():
     while True:
         now = datetime.now(ZoneInfo("Asia/Almaty"))
-        target_hour, target_minute = map(int, load_post_time().split(":"))
-        target_time = now.replace(hour=target_hour, minute=target_minute, second=0, microsecond=0)
-        if now > target_time:
-            target_time += timedelta(days=1)
-        wait_seconds = (target_time - now).total_seconds()
-        logging.info(f"⏳ Следующий пост в {target_time.strftime('%H:%M')} (через {wait_seconds/3600:.1f} часов)")
-        await asyncio.sleep(wait_seconds)
+        post_time = load_post_time()
+        hour, minute = map(int, post_time.split(":"))
+        target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
+        if now > target:
+            target += timedelta(days=1)
+        wait = (target - now).total_seconds()
+        logging.info(f"⏳ Следующий пост в {post_time} (через {wait / 3600:.1f} ч)")
+        await asyncio.sleep(wait)
         await send_daily_post()
 
-# === ХЕНДЛЕРЫ ===
-@dp.message(Command("start"))
-async def cmd_start(message: Message):
+# ✅ Обработчики команд
+@dp.message(CommandStart())
+async def start_cmd(message):
     await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.")
 
 @dp.message(Command("set_time"))
-async def cmd_set_time(message: Message):
+async def set_time_cmd(message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ Эта команда только для администратора!")
+        await message.answer("❌ Только для администратора.")
         return
-    args = message.text.split()
-    if len(args) != 2 or ":" not in args[1]:
-        await message.answer("⚠️ Используйте: /set_time HH:MM")
+
+    parts = message.text.strip().split()
+    if len(parts) != 2 or ":" not in parts[1]:
+        await message.answer("⚠️ Используй формат /set_time HH:MM")
         return
+
     try:
-        datetime.strptime(args[1], "%H:%M")
-        save_post_time(args[1])
-        await message.answer(f"✅ Время публикации изменено на {args[1]}!")
+        datetime.strptime(parts[1], "%H:%M")
+        save_post_time(parts[1])
+        await message.answer(f"✅ Время изменено на {parts[1]}")
     except ValueError:
-        await message.answer("❌ Неверный формат времени. Используйте HH:MM")
+        await message.answer("❌ Неверный формат времени.")
 
 @dp.message(Command("post_now"))
-async def cmd_post_now(message: Message):
+async def post_now_cmd(message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ Эта команда только для администратора!")
+        await message.answer("❌ Только для администратора.")
         return
     await send_daily_post()
     await message.answer("✅ Пост отправлен вручную!")
 
-# === ОБРАБОТКА ОБЫЧНЫХ СООБЩЕНИЙ ===
-@dp.message()
-async def handle_message(message: Message):
-    await message.answer("Я принимаю только команды. Попробуйте /start.")
-
-# === ВЕБХУК ===
-async def on_startup():
-    await bot.set_webhook(WEBHOOK_URL, drop_pending_updates=True)
+# ✅ Веб-сервер aiohttp
+async def on_startup(app):
+    await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(daily_post())
+    logging.info("🌐 Вебхук установлен.")
 
-async def on_webhook(request):
+async def on_shutdown(app):
+    await bot.session.close()
+    logging.info("❌ Сервер остановлен.")
+
+async def handle_webhook(request):
     try:
         data = await request.json()
         update = Update.model_validate(data)
         await dp.feed_update(bot, update)
         return web.Response()
     except Exception as e:
-        logging.error(f"Ошибка при обработке вебхука: {e}")
+        logging.error(f"Webhook error: {e}")
         return web.Response(status=500)
 
-# === ХЕЛСЧЕК ===
-@web.get("/")
-async def root(request):
-    return web.Response(text="Bot is alive ✅")
+async def handle_index(request):
+    return web.Response(text="Бот работает ✅")
 
-# === ПРИЛОЖЕНИЕ ===
+# ✅ Запуск
 app = web.Application()
-app.router.add_get("/", root)
-app.router.add_post(WEBHOOK_PATH, on_webhook)
+app.on_startup.append(on_startup)
+app.on_shutdown.append(on_shutdown)
+app.router.add_post(WEBHOOK_PATH, handle_webhook)
+app.router.add_get("/", handle_index)
 
 if __name__ == "__main__":
-    asyncio.run(on_startup())
-    web.run_app(app, host="0.0.0.0", port=PORT)
+    web.run_app(app, host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
