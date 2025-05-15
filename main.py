@@ -4,9 +4,10 @@ import logging
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiohttp import web
-from aiogram import Bot, Dispatcher
-from aiogram.types import Update, Message, InlineKeyboardMarkup, InlineKeyboardButton
+from aiogram import Bot, Dispatcher, F
+from aiogram.types import Update, Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 import requests
 
 # ✅ Конфигурация
@@ -22,16 +23,19 @@ TIME_FILE = "post_time.txt"
 # ✅ Настройка логирования
 logging.basicConfig(level=logging.INFO)
 
-# ✅ Инициализация бота и диспетчера
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ✅ Темы для ежедневных напоминаний
+# ✅ Состояние ожидания ввода нового времени
+waiting_for_time_input = set()
+
+# ✅ Темы
 daily_topics = [
-    "Поделись Цитатой из Корана для надежды!...", # сократил для компактности
+    "Поделись Цитатой из Корана для надежды! ...",
+    "Поделись аятом из Корана, который раскрывает любовь Аллаха ...",
+    # ... остальные темы
 ]
 
-# ✅ Вспомогательные функции
 def get_daily_prompt():
     index = datetime.now(ZoneInfo("Asia/Almaty")).timetuple().tm_yday % len(daily_topics)
     return daily_topics[index]
@@ -68,7 +72,7 @@ async def send_daily_post():
     url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg" # токен обрезан
+        "Authorization": "Bearer io-v2-..."
     }
     data = {
         "model": "deepseek-ai/DeepSeek-R1",
@@ -84,7 +88,6 @@ async def send_daily_post():
         result = response.json()
         text = result['choices'][0]['message']['content']
         bot_text = text.split('</think>\n\n')[1] if '</think>\n\n' in text else text
-
         await bot.send_message(chat_id=CHANNEL_ID, text=bot_text)
         update_last_post_date()
         logging.info("✅ Пост успешно отправлен.")
@@ -95,63 +98,56 @@ async def send_daily_post():
 async def daily_post():
     while True:
         now = datetime.now(ZoneInfo("Asia/Almaty"))
-        post_time = load_post_time()
-        hour, minute = map(int, post_time.split(":"))
+        hour, minute = map(int, load_post_time().split(":"))
         target = now.replace(hour=hour, minute=minute, second=0, microsecond=0)
         if now > target:
             target += timedelta(days=1)
         wait = (target - now).total_seconds()
-        logging.info(f"⏳ Следующий пост в {post_time} (через {wait / 3600:.1f} ч)")
+        logging.info(f"⏳ Следующий пост в {target} (через {wait / 3600:.1f} ч)")
         await asyncio.sleep(wait)
         await send_daily_post()
 
-# ✅ Кнопка для поста
-keyboard = InlineKeyboardMarkup(
-    inline_keyboard=[[
-        InlineKeyboardButton(text="📤 Отправить пост сейчас", callback_data="post_now")
-    ]]
-)
-
-# ✅ Обработчики команд
+# ✅ Команды
 @dp.message(CommandStart())
 async def start_cmd(message: Message):
-    await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.", reply_markup=keyboard)
-
-@dp.message(Command("set_time"))
-async def set_time_cmd(message: Message):
     if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ Только для администратора.")
+        await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.")
         return
 
-    parts = message.text.strip().split()
-    if len(parts) != 2 or ":" not in parts[1]:
-        await message.answer("⚠️ Используй формат /set_time HH:MM")
-        return
+    kb = InlineKeyboardBuilder()
+    kb.button(text="📤 Отправить пост сейчас", callback_data="post_now")
+    kb.button(text="⏰ Изменить время", callback_data="change_time")
+    kb.adjust(1)
 
-    try:
-        datetime.strptime(parts[1], "%H:%M")
-        save_post_time(parts[1])
-        await message.answer(f"✅ Время изменено на {parts[1]}")
-    except ValueError:
-        await message.answer("❌ Неверный формат времени.")
+    await message.answer("🕌 Добро пожаловать, админ!", reply_markup=kb.as_markup())
 
-@dp.message(Command("post_now"))
-async def post_now_cmd(message: Message):
-    if message.from_user.id != ADMIN_ID:
-        await message.answer("❌ Только для администратора.")
-        return
+@dp.callback_query(F.data == "post_now")
+async def cb_post_now(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return await callback.answer("❌ Только для администратора.", show_alert=True)
     await send_daily_post()
-    await message.answer("✅ Пост отправлен вручную!")
+    await callback.answer("✅ Пост отправлен!")
 
-@dp.callback_query()
-async def callback_post_now(callback_query):
-    if callback_query.from_user.id != ADMIN_ID:
-        await callback_query.answer("⛔ Только для администратора", show_alert=True)
-        return
-    await send_daily_post()
-    await callback_query.answer("✅ Пост отправлен!")
+@dp.callback_query(F.data == "change_time")
+async def cb_change_time(callback: CallbackQuery):
+    if callback.from_user.id != ADMIN_ID:
+        return await callback.answer("❌ Только для администратора.", show_alert=True)
+    waiting_for_time_input.add(callback.from_user.id)
+    await callback.message.answer("⏰ Введите новое время в формате HH:MM (например, 08:30)")
+    await callback.answer()
 
-# ✅ Веб-сервер aiohttp
+@dp.message()
+async def handle_text(message: Message):
+    if message.from_user.id in waiting_for_time_input:
+        try:
+            datetime.strptime(message.text, "%H:%M")
+            save_post_time(message.text)
+            waiting_for_time_input.remove(message.from_user.id)
+            await message.answer(f"✅ Время постинга изменено на {message.text}")
+        except ValueError:
+            await message.answer("❌ Неверный формат. Введите как HH:MM (например, 09:45).")
+
+# ✅ Веб-сервер
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(daily_post())
