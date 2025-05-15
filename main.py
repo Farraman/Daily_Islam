@@ -7,7 +7,7 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Update, Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder
+from aiogram.utils.keyboard import InlineKeyboardBilder
 import requests
 
 # ✅ Конфигурация
