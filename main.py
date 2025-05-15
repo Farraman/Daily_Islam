@@ -17,7 +17,7 @@ ADMIN_ID = 1812311983
 WEBHOOK_HOST = 'https://daily-islam.onrender.com'
 WEBHOOK_PATH = '/webhook'
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-DEFAULT_POST_TIME = "01:05"
+DEFAULT_POST_TIME = "9:00"
 TIME_FILE = "post_time.txt"
 
 # ✅ Настройка логирования
@@ -69,13 +69,13 @@ async def send_daily_post():
         return
 
     prompt = get_daily_prompt()
-    url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
+    url = "https://api.intelligence.io.solutions/api/v1/models"
     headers = {
         "Content-Type": "application/json",
         "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjVmZDNiMjZjLWQyNzAtNDVlYy1iMWYyLTcwZDFhZWVhNGM3OSIsImV4cCI6NDkwMDkzNjA0NX0.hzNBrIDZ38QmR8GgDf2DSIxojVe8wW6KX8T5pw_lXNNvVxdG5kDMMeac5wGxmg6MT9psvf-_wSav1l8Jnaq_LA"
     }
     data = {
-        "model": "CohereForAI/c4ai-command-r-plus-08-2024",
+        "model": "deepseek-ai/DeepSeek-R1",
         "messages": [
             {"role": "system", "content": "Сделай исламский телеграм-пост на тему дня"},
             {"role": "user", "content": prompt}
