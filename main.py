@@ -75,7 +75,7 @@ async def send_daily_post():
         "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjVmZDNiMjZjLWQyNzAtNDVlYy1iMWYyLTcwZDFhZWVhNGM3OSIsImV4cCI6NDkwMDkzNjA0NX0.hzNBrIDZ38QmR8GgDf2DSIxojVe8wW6KX8T5pw_lXNNvVxdG5kDMMeac5wGxmg6MT9psvf-_wSav1l8Jnaq_LA"
     }
     data = {
-        "model": "deepseek-ai/DeepSeek-R1",
+        "model": "CohereForAI/c4ai-command-r-plus-08-2024",
         "messages": [
             {"role": "system", "content": "Сделай исламский телеграм-пост на тему дня"},
             {"role": "user", "content": prompt}
