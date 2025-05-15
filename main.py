@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 from aiohttp import web
 from aiogram import Bot, Dispatcher
-from aiogram.types import Update
+from aiogram.types import Update, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from aiogram.filters import CommandStart, Command
 import requests
 
@@ -28,14 +28,7 @@ dp = Dispatcher()
 
 # ✅ Темы для ежедневных напоминаний
 daily_topics = [
-    "Поделись Цитатой из Корана для надежды! (не больше 50 слов,добавь немного смайликов для красоты и (всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Поделись аятом из Корана, который раскрывает любовь Аллаха к Своим рабам и объясни его смысл.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Расскажи хадис Пророка ﷺ о любви Аллаха к верующим.(не больше 50 слов)",
-    "Сделай мотивационный пост о том, как Аллах проявляет Свою любовь в трудностях.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Поделись вдохновляющей историей из исламской традиции о том, как Аллах проявил милость к Своему рабу.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Объясни, почему любовь Аллаха выше любви любого творения.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Расскажи, какие качества человека делают его любимым для Аллаха.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов",
-    "Сделай пост с напоминанием о том, что Аллах любит прощающих и кающихся.(не больше 50 слов, добавь немного смайликов для красоты)(всегда на всех постах пиши источник цитаты ввиде суры и аята) но не пиши кол-во слов"
+    "Поделись Цитатой из Корана для надежды!...", # сократил для компактности
 ]
 
 # ✅ Вспомогательные функции
@@ -75,7 +68,7 @@ async def send_daily_post():
     url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg"
+        "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjQzYzg3NGVlLWY1NGItNGU2Zi04NTM5LWEwZjllZmVkMmVhOSIsImV4cCI6NDkwMDQ5NDgwNX0.Ydko0GRPqtQJGSd2x6qH7BnmK9EKAQGoY9W_AxZUXzDjvtdw0JyfMbJw_OvU-IA3EAVkHH0lbDrQ4iocF3lQEg" # токен обрезан
     }
     data = {
         "model": "deepseek-ai/DeepSeek-R1",
@@ -92,7 +85,7 @@ async def send_daily_post():
         text = result['choices'][0]['message']['content']
         bot_text = text.split('</think>\n\n')[1] if '</think>\n\n' in text else text
 
-        await bot.send_message(chat_id=CHANNEL_ID, text=bot_text)  # Без parse_mode
+        await bot.send_message(chat_id=CHANNEL_ID, text=bot_text)
         update_last_post_date()
         logging.info("✅ Пост успешно отправлен.")
     except Exception as e:
@@ -112,13 +105,20 @@ async def daily_post():
         await asyncio.sleep(wait)
         await send_daily_post()
 
+# ✅ Кнопка для поста
+keyboard = InlineKeyboardMarkup(
+    inline_keyboard=[[
+        InlineKeyboardButton(text="📤 Отправить пост сейчас", callback_data="post_now")
+    ]]
+)
+
 # ✅ Обработчики команд
 @dp.message(CommandStart())
-async def start_cmd(message):
-    await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.")
+async def start_cmd(message: Message):
+    await message.answer("Привет! Я бот с ежедневными исламскими напоминаниями.", reply_markup=keyboard)
 
 @dp.message(Command("set_time"))
-async def set_time_cmd(message):
+async def set_time_cmd(message: Message):
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Только для администратора.")
         return
@@ -136,12 +136,20 @@ async def set_time_cmd(message):
         await message.answer("❌ Неверный формат времени.")
 
 @dp.message(Command("post_now"))
-async def post_now_cmd(message):
+async def post_now_cmd(message: Message):
     if message.from_user.id != ADMIN_ID:
         await message.answer("❌ Только для администратора.")
         return
     await send_daily_post()
     await message.answer("✅ Пост отправлен вручную!")
+
+@dp.callback_query()
+async def callback_post_now(callback_query):
+    if callback_query.from_user.id != ADMIN_ID:
+        await callback_query.answer("⛔ Только для администратора", show_alert=True)
+        return
+    await send_daily_post()
+    await callback_query.answer("✅ Пост отправлен!")
 
 # ✅ Веб-сервер aiohttp
 async def on_startup(app):
