@@ -17,7 +17,7 @@ ADMIN_ID = 1812311983
 WEBHOOK_HOST = 'https://daily-islam.onrender.com'
 WEBHOOK_PATH = '/webhook'
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
-DEFAULT_POST_TIME = "22:35"
+DEFAULT_POST_TIME = "22:45"
 TIME_FILE = "post_time.txt"
 
 # ✅ Настройка логирования
