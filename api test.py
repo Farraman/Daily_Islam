@@ -9,7 +9,7 @@ headers = {
 }
 
 data = {
-    "model": "deepseek-ai/DeepSeek-R1",
+    "model": "CohereForAI/c4ai-command-r-plus-08-2024",
     "messages": [
         {
             "role": "system",
