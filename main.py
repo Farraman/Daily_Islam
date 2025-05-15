@@ -12,7 +12,7 @@ import requests
 
 # ✅ Конфигурация
 TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'
-CHANNEL_ID = -1002548380025
+CHANNEL_ID = "@Daily_Reminder_Islam"
 ADMIN_ID = 1812311983
 WEBHOOK_HOST = 'https://daily-islam.onrender.com'
 WEBHOOK_PATH = '/webhook'
