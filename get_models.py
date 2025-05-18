@@ -2,7 +2,7 @@ import requests
 from pprint import pprint
 
 
-url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
+url = "https://api.intelligence.io.solutions/api/v1/chat/completions" 
 
 headers = {
     "accept": "application/json",
