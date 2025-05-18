@@ -7,33 +7,31 @@ from aiohttp import web
 from aiogram import Bot, Dispatcher, F
 from aiogram.types import Update, Message, CallbackQuery
 from aiogram.filters import CommandStart, Command
-from aiogram.utils.keyboard import InlineKeyboardBuilder 
+from aiogram.utils.keyboard import InlineKeyboardBuilder
 import requests
 
 # ✅ Конфигурация
-TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'
+TOKEN = '7601592392:AAHcw0VODhZoTm899c4IAG-x1ZVtBE4--Cg'  # <-- заменишь на свой
 CHANNEL_ID = "@Daily_Reminder_Islam"
 ADMIN_ID = 1812311983
-WEBHOOK_HOST = 'https://daily-islam.onrender.com'
+WEBHOOK_HOST = 'https://daily-islam.onrender.com'  # <-- твой домен на Render
 WEBHOOK_PATH = '/webhook'
 WEBHOOK_URL = f"{WEBHOOK_HOST}{WEBHOOK_PATH}"
 DEFAULT_POST_TIME = "9:00"
 TIME_FILE = "post_time.txt"
 
-# ✅ Настройка логирования
+# ✅ Логирование
 logging.basicConfig(level=logging.INFO)
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
 
-# ✅ Состояние ожидания ввода нового времени
 waiting_for_time_input = set()
 
-# ✅ Темы
 daily_topics = [
-    "Поделись Цитатой из Корана для надежды! ...",
-    "Поделись аятом из Корана, который раскрывает любовь Аллаха ...",
-    # ... остальные темы
+    "Поделись Цитатой из Корана для надежды!",
+    "Поделись аятом из Корана, который раскрывает любовь Аллаха.",
+    # Добавь остальные темы
 ]
 
 def get_daily_prompt():
@@ -72,7 +70,7 @@ async def send_daily_post():
     url = "https://api.intelligence.io.solutions/api/v1/chat/completions"
     headers = {
         "Content-Type": "application/json",
-        "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjVmZDNiMjZjLWQyNzAtNDVlYy1iMWYyLTcwZDFhZWVhNGM3OSIsImV4cCI6NDkwMDkzNjA0NX0.hzNBrIDZ38QmR8GgDf2DSIxojVe8wW6KX8T5pw_lXNNvVxdG5kDMMeac5wGxmg6MT9psvf-_wSav1l8Jnaq_LA"
+        "Authorization": "Bearer io-v2-eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9.eyJvd25lciI6IjVmZDNiMjZjLWQyNzAtNDVlYy1iMWYyLTcwZDFhZWVhNGM3OSIsImV4cCI6NDkwMDkzNjA0NX0.hzNBrIDZ38QmR8GgDf2DSIxojVe8wW6KX8T5pw_lXNNvVxdG5kDMMeac5wGxmg6MT9psvf-_wSav1l8Jnaq_LA"  # <-- заменишь на свой ключ
     }
     data = {
         "model": "deepseek-ai/DeepSeek-R1",
@@ -90,9 +88,9 @@ async def send_daily_post():
         bot_text = text.split('</think>\n\n')[1] if '</think>\n\n' in text else text
         await bot.send_message(chat_id=CHANNEL_ID, text=bot_text)
         update_last_post_date()
-        logging.info("✅ Пост успешно отправлен.")
+        logging.info("✅ Пост отправлен.")
     except Exception as e:
-        logging.error(f"❌ Ошибка отправки поста: {e}")
+        logging.error(f"❌ Ошибка отправки: {e}")
 
 # ✅ Планировщик
 async def daily_post():
@@ -103,7 +101,7 @@ async def daily_post():
         if now > target:
             target += timedelta(days=1)
         wait = (target - now).total_seconds()
-        logging.info(f"⏳ Следующий пост в {target} (через {wait / 3600:.1f} ч)")
+        logging.info(f"⏳ Следующий пост: {target} (через {wait / 3600:.1f} ч)")
         await asyncio.sleep(wait)
         await send_daily_post()
 
@@ -118,7 +116,6 @@ async def start_cmd(message: Message):
     kb.button(text="📤 Отправить пост сейчас", callback_data="post_now")
     kb.button(text="⏰ Изменить время", callback_data="change_time")
     kb.adjust(1)
-
     await message.answer("🕌 Добро пожаловать, админ!", reply_markup=kb.as_markup())
 
 @dp.callback_query(F.data == "post_now")
@@ -147,11 +144,11 @@ async def handle_text(message: Message):
         except ValueError:
             await message.answer("❌ Неверный формат. Введите как HH:MM (например, 09:45).")
 
-# ✅ Веб-сервер
+# ✅ Webhook сервер
 async def on_startup(app):
     await bot.set_webhook(WEBHOOK_URL)
     asyncio.create_task(daily_post())
-    logging.info("🌐 Вебхук установлен.")
+    logging.info("🌐 Webhook установлен.")
 
 async def on_shutdown(app):
     await bot.session.close()
